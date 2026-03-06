@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S3 File Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1472.0/aws-sdk.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #151820;
+    --border: #1e2330;
+    --accent: #00d4aa;
+    --accent2: #0066ff;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --danger: #ff4d6d;
+    --success: #00d4aa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover { border-color: #2a3045; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .card-header .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    background: rgba(0,212,170,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(0,212,170,0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .card-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* Form fields */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  input, select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,212,170,0.08);
+  }
+
+  input::placeholder { color: #374151; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #00b894);
+    color: #0a0f0a;
+  }
+
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,212,170,0.3); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger { background: rgba(255,77,109,0.1); color: var(--danger); border: 1px solid rgba(255,77,109,0.2); }
+  .btn-danger:hover { background: rgba(255,77,109,0.2); }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+  /* Drop zone */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,212,170,0.03);
+  }
+
+  .dropzone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0;
+  }
+
+  .drop-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .drop-text { font-size: 0.9rem; color: var(--muted); }
+  .drop-text strong { color: var(--accent); }
+
+  /* Progress */
+  .progress-wrap { margin-top: 16px; display: none; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; }
+  .progress-bar { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width 0.3s; width: 0%; }
+
+  /* File list */
+  .file-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    transition: border-color 0.2s;
+    animation: slideIn 0.2s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .file-item:hover { border-color: #2a3045; }
+
+  .file-icon {
+    width: 36px;
+    height: 36px;
+    background: rgba(0,102,255,0.1);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 0.875rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-meta { font-size: 0.75rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+
+  .file-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: all 0.15s;
+  }
+
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 0.875rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+    max-width: 320px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-left: 3px solid var(--success); }
+  #toast.error { border-left: 3px solid var(--danger); }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 32px; color: var(--muted); font-size: 0.875rem; }
+
+  /* Status indicator */
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .status-dot.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  .actions-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,212,170,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">☁</div>
+      <div>
+        <h1>S3 File Manager</h1>
+        <p class="subtitle">Upload & manage files on AWS S3</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Config Card -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge">CONFIG</span>
+      <span class="card-title">AWS Credentials</span>
+      <span style="margin-left:auto;font-size:0.8rem;color:var(--muted)">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">ยังไม่ได้เชื่อมต่อ</span>
+      </span>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Access Key ID</label>
+        <input type="text" id="accessKey" placeholder="AKIAIOSFODNN7EXAMPLE">
+      </div>
+      <div class="field">
+        <label>Secret Access Key</label>
+        <input type="password" id="secretKey" placeholder="wJalrXUtnFEMI/K7MDENG/...">
+      </div>
+      <div class="field">
+        <label>Region</label>
+        <select id="region">
+          <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+          <option value="ap-southeast-7">ap-southeast-7 (Thailand)</option>
+          <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
+          <option value="us-east-1">us-east-1 (N. Virginia)</option>
+          <option value="us-west-2">us-west-2 (Oregon)</option>
+          <option value="eu-west-1">eu-west-1 (Ireland)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Bucket Name</label>
+        <input type="text" id="bucketName" placeholder="my-bucket-name">
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn btn-primary" onclick="connect()">
+        <span>⚡</span> เชื่อมต่อ S3
+      </button>
+    </div>
+  </div>
+
+  <!-- Upload Card -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge">UPLOAD</span>
+      <span class="card-title">อัปโหลดไฟล์</span>
+    </div>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" multiple onchange="handleFiles(this.files)">
+      <div class="drop-icon">📂</div>
+      <div class="drop-text">
+        ลากไฟล์มาวางที่นี่ หรือ <strong>คลิกเลือกไฟล์</strong><br>
+        <span style="font-size:0.75rem;margin-top:4px;display:block">รองรับทุกประเภทไฟล์</span>
+      </div>
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressFileName">กำลังอัปโหลด...</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </div>
+
+  <!-- File List Card -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge">FILES</span>
+      <span class="card-title">ไฟล์ใน Bucket</span>
+      <div class="actions-row" style="margin-left:auto">
+        <div class="spinner" id="listSpinner"></div>
+        <button class="btn btn-ghost" onclick="listFiles()" style="padding:6px 12px;font-size:0.8rem">
+          🔄 รีเฟรช
+        </button>
+      </div>
+    </div>
+    <div id="fileList">
+      <div class="empty-state">เชื่อมต่อ S3 และกด "รีเฟรช" เพื่อดูไฟล์</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+let s3 = null;
+let currentBucket = '';
+
+// Drag & Drop
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+
+function connect() {
+  const accessKey = document.getElementById('accessKey').value.trim();
+  const secretKey = document.getElementById('secretKey').value.trim();
+  const region = document.getElementById('region').value;
+  const bucket = document.getElementById('bucketName').value.trim();
+
+  if (!accessKey || !secretKey || !bucket) {
+    toast('กรุณากรอก Access Key, Secret Key และ Bucket Name', 'error');
+    return;
+  }
+
+  AWS.config.update({
+    accessKeyId: accessKey,
+    secretAccessKey: secretKey,
+    region: region
+  });
+
+  s3 = new AWS.S3();
+  currentBucket = bucket;
+
+  // Test connection
+  s3.listObjectsV2({ Bucket: bucket, MaxKeys: 1 }, (err) => {
+    if (err) {
+      toast('❌ เชื่อมต่อไม่ได้: ' + err.message, 'error');
+      s3 = null;
+    } else {
+      document.getElementById('statusDot').classList.add('connected');
+      document.getElementById('statusText').textContent = 'เชื่อมต่อแล้ว';
+      toast('✅ เชื่อมต่อ S3 สำเร็จ!', 'success');
+      listFiles();
+    }
+  });
+}
+
+function handleFiles(files) {
+  if (!s3) { toast('กรุณาเชื่อมต่อ S3 ก่อน', 'error'); return; }
+  Array.from(files).forEach(uploadFile);
+}
+
+function uploadFile(file) {
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressPercent = document.getElementById('progressPercent');
+  const progressFileName = document.getElementById('progressFileName');
+
+  progressWrap.style.display = 'block';
+  progressFileName.textContent = file.name;
+
+  const params = {
+    Bucket: currentBucket,
+    Key: file.name,
+    Body: file,
+    ContentType: file.type || 'application/octet-stream'
+  };
+
+  s3.upload(params).on('httpUploadProgress', (evt) => {
+    const pct = Math.round((evt.loaded / evt.total) * 100);
+    progressFill.style.width = pct + '%';
+    progressPercent.textContent = pct + '%';
+  }).send((err) => {
+    if (err) {
+      toast('❌ อัปโหลดล้มเหลว: ' + err.message, 'error');
+    } else {
+      toast(`✅ อัปโหลด "${file.name}" สำเร็จ`, 'success');
+      setTimeout(() => { progressWrap.style.display = 'none'; progressFill.style.width = '0%'; }, 1500);
+      listFiles();
+    }
+  });
+}
+
+function listFiles() {
+  if (!s3) { toast('กรุณาเชื่อมต่อ S3 ก่อน', 'error'); return; }
+
+  const spinner = document.getElementById('listSpinner');
+  spinner.style.display = 'block';
+
+  s3.listObjectsV2({ Bucket: currentBucket }, (err, data) => {
+    spinner.style.display = 'none';
+    if (err) { toast('❌ โหลดไฟล์ไม่ได้: ' + err.message, 'error'); return; }
+
+    const container = document.getElementById('fileList');
+    if (!data.Contents || data.Contents.length === 0) {
+      container.innerHTML = '<div class="empty-state">ไม่มีไฟล์ใน Bucket นี้</div>';
+      return;
+    }
+
+    const sorted = data.Contents.sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified));
+    container.innerHTML = '<div class="file-list">' + sorted.map(obj => fileItemHTML(obj)).join('') + '</div>';
+  });
+}
+
+function fileItemHTML(obj) {
+  const name = obj.Key;
+  const size = formatSize(obj.Size);
+  const date = new Date(obj.LastModified).toLocaleString('th-TH');
+  const icon = getIcon(name);
+  const safeKey = encodeURIComponent(name);
+
+  return `
+    <div class="file-item">
+      <div class="file-icon">${icon}</div>
+      <div class="file-info">
+        <div class="file-name" title="${name}">${name}</div>
+        <div class="file-meta">${size} · ${date}</div>
+      </div>
+      <div class="file-actions">
+        <button class="icon-btn" onclick="openFile('${safeKey}')" title="เปิด/ดาวน์โหลด">↗</button>
+        <button class="icon-btn" onclick="copyLink('${safeKey}')" title="คัดลอก URL">🔗</button>
+        <button class="icon-btn del" onclick="deleteFile('${safeKey}', '${name}')" title="ลบ">✕</button>
+      </div>
+    </div>`;
+}
+
+function openFile(safeKey) {
+  const key = decodeURIComponent(safeKey);
+  const params = { Bucket: currentBucket, Key: key, Expires: 300 };
+  s3.getSignedUrl('getObject', params, (err, url) => {
+    if (err) { toast('❌ ไม่สามารถสร้าง URL ได้', 'error'); return; }
+    window.open(url, '_blank');
+  });
+}
+
+function copyLink(safeKey) {
+  const key = decodeURIComponent(safeKey);
+  const params = { Bucket: currentBucket, Key: key, Expires: 3600 };
+  s3.getSignedUrl('getObject', params, (err, url) => {
+    if (err) { toast('❌ ไม่สามารถสร้าง URL ได้', 'error'); return; }
+    navigator.clipboard.writeText(url).then(() => toast('📋 คัดลอก Signed URL แล้ว (หมดอายุ 1 ชม.)', 'success'));
+  });
+}
+
+function deleteFile(safeKey, displayName) {
+  if (!confirm(`ต้องการลบ "${displayName}" ใช่หรือไม่?`)) return;
+  const key = decodeURIComponent(safeKey);
+  s3.deleteObject({ Bucket: currentBucket, Key: key }, (err) => {
+    if (err) { toast('❌ ลบไม่ได้: ' + err.message, 'error'); return; }
+    toast(`🗑 ลบ "${displayName}" แล้ว`, 'success');
+    listFiles();
+  });
+}
+
+function getIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = { pdf:'📄', jpg:'🖼', jpeg:'🖼', png:'🖼', gif:'🖼', webp:'🖼', mp4:'🎬', mov:'🎬', avi:'🎬', mp3:'🎵', wav:'🎵', zip:'📦', rar:'📦', xlsx:'📊', xls:'📊', csv:'📊', doc:'📝', docx:'📝', txt:'📝', js:'⚙️', py:'🐍', json:'📋', html:'🌐', pptx:'📑', ppt:'📑' };
+  return map[ext] || '📁';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+let toastTimer;
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+}
+</script>
+</body>
+</html>
